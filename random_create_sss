@@ -1,0 +1,119 @@
+import json
+from PIL import Image
+from tkinter import filedialog
+import random
+import os
+import glob
+
+# 選擇資料集
+def choose_folder():
+    path = filedialog.askdirectory()
+    print(f"Selected folder: {path}")  # 調試訊息
+    return path
+
+# 讀json檔
+def read_file(file_name):
+    with open(file_name, 'r') as jsonFile:
+        data = json.load(jsonFile)
+    init_height = data['imageHeight']
+    init_weight = data['imageWidth']
+    img_path = data['imagePath']
+    label_dict = data['shapes']
+    label_a = None
+    for label in label_dict:
+        if label['label'] == 'A':
+            label_a = label
+            break
+    if label_a is None:
+        raise ValueError("No label 'A' found in the JSON file.")
+    point_list = label_a['points']
+    max_x = max([point[0] for point in point_list])
+    min_x = min([point[0] for point in point_list])
+    max_y = max([point[1] for point in point_list])
+    min_y = min([point[1] for point in point_list])
+    return init_height, init_weight, img_path, max_x, min_x, max_y, min_y
+
+# 隨機產生障礙物
+def random_create(max_x, min_x, max_y, min_y, rate):
+    min_rate = [0.4, 0.4, 0.4, 1.2]
+    max_rate = [1, 1.2, 1.3, 1.7]
+    # 隨機選擇障礙物類型
+    ran_type = random.randint(0, 3)
+    ran_rate = random.uniform(min_rate[ran_type], max_rate[ran_type])
+    # 讀取隨機選擇的障礙物圖片
+    img_b = Image.open(f"./block/a{ran_type + 1}.png")
+    width, height = img_b.size
+    # 計算障礙物縮放後的尺寸
+    width *= ran_rate
+    height *= ran_rate
+    # 確保障礙物位於 "A" 範圍內，並考慮縮放後的大小
+    valid_min_x = min_x
+    valid_max_x = max_x - width
+    valid_min_y = min_y
+    valid_max_y = max_y - height
+    # 隨機生成障礙物位置，確保在 "A" 標籤範圍內
+    ran_x = random.uniform(valid_min_x, valid_max_x)
+    ran_y = random.uniform(valid_min_y, valid_max_y)
+    return int(ran_x), int(ran_y), ran_rate, ran_type + 1  # 返回障礙物類型
+
+def process_image(image_path, json_path, output_path):
+    # 讀取JSON文件
+    data = read_file(json_path)
+    img = Image.open(image_path)
+    m_rate = round(data[1] / 680, 3)  # 計算比例因子
+    rate = m_rate
+    # 隨機選取障礙物位置和類型
+    ran_x, ran_y, ran_rate, ran_type = random_create(data[3], data[4], data[5], data[6], m_rate)
+    # 讀取隨機選擇的障礙物圖片
+    block_img = Image.open(f"./block/a{ran_type}.png")
+    block_width, block_height = int(block_img.size[0] * ran_rate), int(block_img.size[1] * ran_rate)
+    # 調整障礙物大小，使用 LANCZOS 作為抗鋸齒濾鏡
+    block_img = block_img.resize((block_width, block_height), Image.LANCZOS)
+    # 在原圖片上貼上障礙物圖片
+    img.paste(block_img, (ran_x, ran_y), block_img)
+    # 儲存結果
+    img.save(output_path)
+    print(f"Saved processed image to: {output_path}")  # 調試訊息
+
+def main():
+    input_folder = choose_folder()
+    # 確保輸出資料夾存在
+    result_folder = os.path.join(input_folder, "processed_images")
+    if not os.path.exists(result_folder):
+        os.makedirs(result_folder)
+        print(f"Created output folder: {result_folder}")  # 調試訊息
+    # 假設json文件在data/jsons目錄下
+    json_folder = os.path.join(input_folder, 'jsons')
+    print(input_folder)
+    print(json_folder)
+    json_files = glob.glob(os.path.join(json_folder, '*.json'))
+   
+    if not json_files:
+        print("No JSON files found in the folder.")
+        return
+    for json_file in json_files:
+        with open(json_file) as f:
+            data = json.load(f)
+        # 假設圖片在data/images目錄下
+        image_name = data['imagePath']
+        image_file = os.path.join(input_folder, 'images', image_name)
+        # 嘗試多種圖片擴展名
+        if not os.path.isfile(image_file):
+            # 如果找不到原始擴展名，嘗試使用 .jpg 或 .jpeg
+            image_name = os.path.splitext(image_name)[0]  # 去掉原擴展名
+            possible_extensions = ['.jpg', '.jpeg', '.png']
+            found = False
+            for ext in possible_extensions:
+                image_file = os.path.join(input_folder, 'images', image_name + ext)
+                if os.path.isfile(image_file):
+                    found = True
+                    break
+            if not found:
+                print(f"Image file not found: {image_file}")
+                continue
+        output_path = os.path.join(result_folder, f"obstacle_{os.path.basename(json_file)[:-5]}.jpg")
+        process_image(image_file, json_file, output_path)
+    print("Processing complete.")
+
+if __name__ == "__main__":
+    main()

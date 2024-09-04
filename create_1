@@ -1,0 +1,234 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Aug 27 11:47:06 2024
+
+@author: 李魚
+"""
+
+import pygame as pg # GUI設計
+import json #json讀取
+from PIL import Image #圖層覆蓋模組
+from tkinter import filedialog #file 選擇模組
+import random
+
+def choose(): # 選擇檔案GUI
+    path = filedialog.askopenfilename()
+    x= 0 
+    for i in range(1,len(path)):
+        if path[-i] != '/':
+            x+=1
+        else:
+            path = path[len(path)-x:]
+            break
+        
+    return path
+
+def read_file(file_name):
+    jsonFile = open(file_name,'r')
+    f =  jsonFile.read()   # 要先使用 read 讀取檔案
+    a = json.loads(f)      # 再使用 loads
+    init_height = a['imageHeight'] ; init_weight = a['imageWidth']
+    img_path = a['imagePath']
+    label_dict = a['shapes']
+    for i in range(len(label_dict)):
+        if label_dict[i]['label'] == 'A':
+            label_a = label_dict[i]
+    point_list = label_a['points']
+    
+    max_x =0;min_x = 9999 ;max_y =0; min_y = 9999 
+    for i in point_list:
+        if i[0] > max_x: max_x = i[0]
+        if i[0] < min_x: min_x = i[0]
+        if i[1] > max_y: max_y = i[1]
+        if i[1] < min_y: min_y = i[1]
+    return(init_height,init_weight,img_path,max_x,min_x,max_y,min_y)
+
+def random_create(max_x,min_x,max_y,min_y,rate,ready):
+    min_rate = [0.4,0.4,0.4,1.2] ; max_rate = [1,1.2,1.3,1.7]
+    max_x /= rate ; min_x /= rate ; max_y /= rate ; min_y /= rate #縮小
+    ran_type = ready-1
+    img_b = Image.open(f"./block/a{ran_type+1}.png") ; width, height = img_b.size
+    ran_rate = random.uniform(min_rate[ran_type],max_rate[ran_type])
+    width *= ran_rate ; height *= ran_rate
+    ran_x = random.uniform(min_x,max_x-(width*0.5))
+    ran_y = random.uniform(min_y,max_y-(height*0.5))
+    return (int(ran_x),int(ran_y),ran_rate)
+    
+    
+path = choose()
+data = read_file(path) #device123_20240617_161230_6.json
+
+pg.init()
+running = 1 ; mode = 0 ; clk = 0 ; bt_mode = 0
+ready = 1 ; bt_x = 75 ; rate = 3.765
+b_x = 205 ; b_y = 75
+rect_list = [65,195,315,455]
+
+screen = pg.display.set_mode((900,650))
+pg.display.set_caption('Rail Maker')
+title_font = pg.font.Font("./font/BAHNSCHRIFT.ttf", 32)
+btn_font = pg.font.Font("./font/BAHNSCHRIFT.ttf", 18)
+main_clock = pg.time.Clock()  
+
+a1 = pg.image.load("./block/a1.png") #370*674
+a2 = pg.image.load("./block/a2.png") #551*453
+a3 = pg.image.load("./block/a3.png") #204*204
+a4 = pg.image.load("./block/a4.png") #257*183
+img = pg.image.load(path[:-5]+'.jpg')
+img = pg.transform.scale(img,(680,510))
+
+m_rate = round(data[1]/680,3)
+rate = m_rate
+
+while running:
+    user = pg.mouse.get_pos()
+    x = user[0] ;y = user[1] 
+    mouse = pg.mouse.get_pressed()
+
+    screen.fill((255,255,255))
+    screen.blit(title_font.render("File Name :", True, (0,0,0)), (20,20)) 
+    screen.blit(title_font.render(path, True, (0,0,0)), (180,20))
+    screen.blit(img,(200,70))
+    screen.blit(pg.transform.scale(a1,(70,100)),(45,70))
+    screen.blit(pg.transform.scale(a2,(70,70)),(50,220))
+    screen.blit(pg.transform.scale(a3,(100,100)),(40,320))
+    screen.blit(pg.transform.scale(a4,(70,70)),(50,470))
+   
+    if mode == 0:
+        if 180 > y > 60 and 150 > x > 40:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(30, 65, 110, 110),  2)
+            if mouse[0]: ready = 1
+        
+        if 320 > y > 200 and 150 > x > 40:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(30, 195, 110, 110),  2)
+            if mouse[0]: ready = 2
+            
+        if 460 > y > 340 and 150 > x > 40:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(30, 315, 110, 110),  2)
+            if mouse[0]: ready = 3
+            
+        if 550 > y > 460 and 150 > x > 40:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(30, 455, 110, 110),  2)
+            if mouse[0]: ready = 4
+            
+        if ready :
+            pg.draw.rect(screen, (19,49,104), pg.Rect(30, rect_list[ready-1], 110, 110),  2)
+            if 150 > x > 30 and 630 > y > 600:     
+                pg.draw.rect(screen, (19,49,104), pg.Rect(30, 600, 120, 30),  0)
+                screen.blit(btn_font.render(" OK !  ", True, (255,255,255)), (70,607))
+                if mouse[0] : mode =1 ; clk = 0 
+            else:
+                pg.draw.rect(screen, (220,220,220), pg.Rect(30, 600, 120, 30),  0)
+                screen.blit(btn_font.render(" OK !  ", True, (19,49,104)), (70,607))
+        
+        if clk % 20 == 0:
+            bt_mode += 1
+        if bt_mode%2:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(200, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 1", True, (255,255,255)), (205,605)) 
+   
+    elif mode == 1:
+        pg.draw.rect(screen, (19,49,104), pg.Rect(30, rect_list[ready-1], 110, 110),  2)
+        
+        block_img = pg.image.load(f"./block/a{ready}.png")
+        img_b = Image.open(f"./block/a{ready}.png") ; width, height = img_b.size
+        
+        screen.blit(pg.transform.scale(block_img,(int(width/rate),int(height/rate))),(b_x,b_y))
+        
+        pg.draw.rect(screen, (220,220,220), pg.Rect(30, 580, 120, 3),  0)
+        pg.draw.rect(screen, (19,49,104), pg.Rect(30, 580, bt_x-20, 3),  0)
+        pg.draw.rect(screen, (190,190,190), pg.Rect(bt_x, 570, 20, 20),  0)
+        
+        if 80 > x > 30 and 630 > y > 600:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(30, 600, 50, 30),  0)
+            screen.blit(btn_font.render(" OK ! ", True, (255,255,255)), (35,607))
+            if mouse[0] and clk > 20: mode = 2
+        else:
+            pg.draw.rect(screen, (220,220,220), pg.Rect(30, 600, 50, 30),  0)
+            screen.blit(btn_font.render(" OK ! ", True, (19,49,104)), (35,607))
+       
+        if 170 > x > 90 and 630 > y > 600:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(90, 600, 80, 30),  0)
+            screen.blit(btn_font.render("Random", True, (255,255,255)), (95,607))
+            
+            if mouse[0] and clk > 20:
+               bt_ = random_create(data[3], data[4], data[5], data[6], m_rate,ready)
+               b_x = bt_[0]+200 ; b_y = bt_[1]+70 ; bt_x = bt_[2]*75
+               clk = 0 
+        else:
+            pg.draw.rect(screen, (220,220,220), pg.Rect(90, 600, 80, 30),  0)
+            screen.blit(btn_font.render("Random", True, (19,49,104)), (95,607))
+        
+        if 135 > x > 15 and 605 > y > 565:
+            if mouse[0]: bt_x = x
+        if bt_x > 150: bt_x = 150 
+        if bt_x < 30: bt_x = 30 
+        rate = m_rate *(75/bt_x)   
+        screen.blit(btn_font.render(f"{round(m_rate/rate,1)}", True, (19,49,104)), (165,573)) 
+        
+        if 880 > x > 200 and 600 > y > 70:
+            if mouse[0]: b_x = x-30 ; b_y = y-30
+
+        
+        if 260 > x > 200 and 630 > y > 600:     
+            pg.draw.rect(screen, (220,220,220), pg.Rect(200, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 1", True, (19,49,104)), (205,605))
+            if mouse[0]: mode = 0
+        else: 
+            pg.draw.rect(screen, (19,49,104), pg.Rect(200, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 1", True, (255,255,255)), (205,605)) 
+
+        if clk % 20 == 0:
+            bt_mode += 1
+        if bt_mode%2:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(270, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 2", True, (255,255,255)), (275,605)) 
+    elif mode == 2:
+        pg.draw.rect(screen, (19,49,104), pg.Rect(30, rect_list[ready-1], 110, 110),  2)
+        
+        block_img = pg.image.load(f"./block/a{ready}.png")
+        img_b = Image.open(f"./block/a{ready}.png") ; width, height = img_b.size
+        
+        screen.blit(pg.transform.scale(block_img,(int(width/rate),int(height/rate))),(b_x,b_y))
+        
+        if 170 > x > 90 and 630 > y > 600:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(50, 600, 80, 30),  0)
+            screen.blit(btn_font.render(" Save ", True, (255,255,255)), (70,607))
+            if mouse[0] and clk > 20:
+               clk = 0 
+               screenshot = screen.subsurface((200, 70, 680, 510)).copy()
+               pg.image.save(screenshot, f"obstacle_{path[:-5]}.png")
+               img_c = Image.open(f"obstacle_{path[:-5]}.png")
+               img2 = img_c.resize((data[1],data[0]))   
+               img2.save(f"obstacle_{path[:-5]}.png")
+               running = 0
+        else:
+            pg.draw.rect(screen, (220,220,220), pg.Rect(50, 600, 80, 30),  0)
+            screen.blit(btn_font.render(" Save ", True, (19,49,104)), (70,607))
+        
+        pg.draw.rect(screen, (19,49,104), pg.Rect(200, 600, 60, 30),  0)
+        screen.blit(btn_font.render("Step 1", True, (255,255,255)), (205,605))
+        
+        if 330 > x > 270 and 630 > y > 600:     
+            pg.draw.rect(screen, (220,220,220), pg.Rect(270, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 2", True, (19,49,104)), (275,605)) 
+            if mouse[0]: mode = 1
+        else: 
+            pg.draw.rect(screen, (19,49,104), pg.Rect(270, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 2", True, (255,255,255)), (275,605)) 
+        
+        if clk % 20 == 0:
+            bt_mode += 1
+            
+        if bt_mode%2:
+            pg.draw.rect(screen, (19,49,104), pg.Rect(340, 600, 60, 30),  0)
+            screen.blit(btn_font.render("Step 3", True, (255,255,255)), (345,605)) 
+            
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
+            running = False
+
+    main_clock.tick(20)
+    pg.display.update()
+    clk +=1
+pg.quit()
